@@ -40,10 +40,6 @@ Afterwards, you should have the following collections present
 - `uni_rankings`, where all uploaded statistics will be stored
 - `permissions`, where you can manage what each user is supposed to upload
 
-### Adding app_user field to users collection
-
-Next, please navigate to the `users` collection (a standard collection already created by PocketBase) and click he "Edit collection" button (gearbox at the top of the screen). In the edit menu, create a new field called `app_user`  of type `bool`.
-
 ### Installing data hooks
 
 To enable actual data to be uploaded to your PocketBase instance, you will need to add `hooks` for the following routes:
