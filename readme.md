@@ -83,3 +83,9 @@ The database relies on a few pr0game internal IDs for reliable identification (e
 For use with the PocketBase backend, the script will add a login form on the ingame settings page. If you choose another backend, you may want to change the handling of this form or remove it entirely.
 
 When using PocketBase, you will need to create a user in the `users` collection and add the user to the `permissions` collection to enable uploads by this user.
+
+# Data retrieval
+
+The data stored in the PocketBase instance can be inspected either using the Admin-Dashboard (i.e. by navigating to http://localhost:8090/_ in your browser) or using the PocketBase SDK in the language of your choice. There are many wrappers available (e.g. for Python or Javascript) that offer an easy way to access and analyze the data.
+
+You can also create custom Views in your Admin-Panel, which allows you to run SQL query that combine all data in a way that suits you.
