@@ -1,15 +1,16 @@
 // ==UserScript==
-// @name     pr0game sync
+// @name     pr0game sync DEV
 // @version  0.1.5
 // @grant    none
 // @include  https://pr0game.ddev.site/*
-// @include  https://pr0game.com/uni5/*
-// @require  https://127.0.0.1/pocketbase.umd.js
+// @include  https://test.pr0game.com/*
+// @require  http://127.0.0.1:8090/pocketbase.umd.js
 // ==/UserScript==
 
 // Data base connection. You may need to change the URL to a public server for collaborative work.
 // When chaning this URL, don't forget to update the @require directive above!
-const pb = new PocketBase('https://127.0.0.1/');
+const pb = new PocketBase('http://127.0.0.1:8090/');
+
 async function check_connection()
 {
   try {
@@ -29,7 +30,7 @@ async function login(username, password)
   	const authData = await pb.collection('users').authWithPassword(username, password);
   } catch (e) {
     return false;
-  }
+  } 
   return await check_connection();
 }
 
@@ -89,7 +90,7 @@ function extract_id(popup)
 }
 
 // Parst die Galaxieansicht und sendet Informationen an die Datenbank
-async function sync_gala()
+async function sync_gala(share_icon)
 {
   // Gala und System aus den voreingestellten Input-Values übernehmen
   var gala = document.querySelector('input[name=galaxy]').getAttribute("value") * 1;
@@ -205,16 +206,26 @@ async function sync_gala()
         planets: planets
       },
 		});
+    // Give feedback that the button was pressed
+    share_icon.querySelector('svg').style.fill = "gray";
   } catch (e) {
     alert("Fehler beim Speichern: " + e.message);
   }
 }
 
-async function sync_spio(header_tr, send_discord)
+async function sync_spio(header_tr, send_discord, be_silent)
 {
+  if(be_silent === undefined)
+    be_silent = false;
   const msg_id = /(\d+)$/g.exec(header_tr.getAttribute('id'))[1];
   if(msg_id === undefined)
-    alert("Konnte Spionagebericht nicht extrahieren.");
+  {
+    if(!be_silent)
+    	alert("Konnte Spionagebericht nicht extrahieren.");
+   	else
+      console.log("Konnte Spionagebericht nicht extrahieren.");
+    return false;
+  }
   const body_tr = document.querySelector('tr.messages_body.message_'+msg_id);
   
   // Scan-Zeitpunkt extrahieren
@@ -243,8 +254,11 @@ async function sync_spio(header_tr, send_discord)
   }
   if(galaxy == 0 || system == 0 || planet == 0 || planettype == 0)
   {
-    alert("Konnte Zielplanet nicht bestimmen.");
-    return;
+    if(!be_silent)
+    	alert("Konnte Zielplanet nicht bestimmen.");
+   	else
+      console.log("Konnte Zielplanet nicht bestimmen.");
+    return false;
   }
   
   for(var i = 0; i < headers.length; i++)
@@ -253,7 +267,6 @@ async function sync_spio(header_tr, send_discord)
     var current_class = current_header.getAttribute("class").replaceAll("spyRaportContainerHead", "").replace("Class", "");
     if(current_class == "") continue;
     current_class = current_class * 1;
-    console.log(current_header, current_class, current_class === 0);
     if(current_class === 0) has_class0 = true;
     if(current_class === 100) has_class100 = true;
     if(current_class === 200) has_class200 = true;
@@ -301,13 +314,34 @@ async function sync_spio(header_tr, send_discord)
       method: 'POST',
       body: report,
     });
+    // Give feedback that the button was pressed
+    const icon = header_tr.querySelectorAll('a svg');
+    for(var i = 0; i < icon.length; i++)
+    {
+      icon[i].style.fill = "gray";
+    }
   } catch (e) {
-    alert("Fehler beim Speichern: " + e.message);
+    if(!be_silent)
+    	alert("Fehler beim Speichern: " + e.message);
+   	else
+      console.log("Fehler beim Speichern: " + e.message);
+    if(e.status === 422)
+    {
+      // This means the spy report was already uploaded, so not an "error" really
+      // Give feedback that the button was pressed
+      const icon = header_tr.querySelectorAll('a svg');
+      for(var i = 0; i < icon.length; i++)
+      {
+        icon[i].style.fill = "gray";
+      }
+      return true;
+    }
+    return false;
   }
-  console.log(report);
+  return true;
 }
 
-async function sync_stat()
+async function sync_stat(share_icon)
 {
   const header = document.querySelector('table.table519 th').textContent;
   const data_table = document.querySelector('table.table519:has(tr>td+td+td+td+td)');
@@ -383,13 +417,14 @@ async function sync_stat()
       method: 'POST',
       body: stat_update,
     });
+    // Give feedback that the button was pressed
+    share_icon.querySelector('svg').style.fill = "gray";
   } catch (e) {
     alert("Fehler beim Speichern: " + e.message);
   }
-  console.log(stat_update);
 }
 
-async function playercard_sync(iref)
+async function playercard_sync(iref, share_icon)
 {
   // Da es hier wenig Anhaltspunkte gibt, gehen wir einfach
   // gottlos über die Zeilennummern
@@ -431,19 +466,27 @@ async function playercard_sync(iref)
   const total_rank = rows[8].querySelector('td:last-child').textContent.trim() * 1;
   const total_points = rows[8].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   
+  
   const won_fights = rows[12].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   const drawn_fights = rows[13].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   const lost_fights = rows[14].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   
-  const killed_involved = rows[17].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const lost_involved = rows[18].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const met_involved = rows[19].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const kris_involved = rows[20].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const honour_points = rows[17].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const honour_rank = rows[18].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   
-  const killed_real = rows[22].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const lost_real = rows[23].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const met_real = rows[24].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
-  const kris_real = rows[25].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const fights_good = rows[21].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const fights_bad = rows[22].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const fights_neutral = rows[23].querySelector('td:nth-child(3)').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  
+  const killed_involved = rows[25].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const lost_involved = rows[26].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const met_involved = rows[27].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const kris_involved = rows[28].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  
+  const killed_real = rows[30].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const lost_real = rows[31].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const met_real = rows[32].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
+  const kris_real = rows[33].querySelector('td:last-child').textContent.replaceAll(',','').replaceAll('.', '').trim() * 1;
   
   const player_card = {
     user_id: user_id,
@@ -472,16 +515,125 @@ async function playercard_sync(iref)
     lost_real : lost_real,
     met_real : met_real,
     kris_real : kris_real,
+    honour_points : honour_points,
+    honour_rank : honour_rank,
+    fights_good: fights_good,
+    fights_bad: fights_bad,
+    fights_neutral : fights_neutral,
   };
   try{
     await pb.send("/player", {
       method: 'POST',
       body: player_card,
     });
+    // Give feedback that the button was pressed
+    share_icon.style.fill = "gray";
   } catch (e) {
     alert("Fehler beim Speichern: " + e.message);
   }
-  console.log(player_card);
+}
+
+async function sync_empire(empire_sync, share_icon)
+{
+  // First, find our coordinates
+  const imageRow = empire_sync.querySelector("tr:has(td a img)")
+  const nameRow = imageRow.nextElementSibling;
+  const coordRow = nameRow.nextElementSibling;
+  // Now, find out how many planets we have
+  const planet_coords = coordRow.querySelectorAll("td:has(a)");
+  const planet_count = planet_coords.length;
+  // Try to match the existing timestamp format
+  const timestamp = new Date().toLocaleString("de", {
+                                                      year: "numeric",
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      hour: 'numeric',
+                                                      minute: 'numeric',
+                                                      second: 'numeric',
+                                                    });
+  // Build a fake spy report for each planet
+  var reports = []
+  for(var i = 0; i < planet_count; i++)
+  {
+    const planet_coord = planet_coords[i];
+    // First, fill in coordinates
+    const coords = /\[(\d+):(\d+):(\d+)\]$/g.exec(planet_coord.textContent);
+    if(coords.length != 4)
+    {
+      alert("Konnte Koordinaten nicht bestimmen!");
+      return;
+    }
+    const galaxy = coords[1] * 1;
+    const system = coords[2] * 1;
+    const planet = coords[3] * 1;
+    
+    var report = {
+      msg_id: -1,
+      timestamp: timestamp,
+      forward: false,
+      galaxy: galaxy,
+    	system: system,
+    	planet: planet,
+      planettype: 1, // assume planet for now, need to check for moons when we have all info
+      cat0: true,
+      cat100: true,
+      cat200: true,
+      cat400: true,
+      dat: [
+        {}, // dat0
+        {}, // dat100
+        {}, // dat200
+        {}, // dat400
+        {}, // dat900
+      ]
+    }
+    reports.push(report);
+  }
+  // now add the information
+  const info_trs = empire_sync.querySelectorAll("tr[data-info]");
+  for(var i = 0; i < info_trs.length; i++)
+  {
+    const tr = info_trs[i];
+    const info_id = parseInt(tr.getAttribute("data-info").split("_")[1]);
+    const infos = tr.querySelectorAll("td");
+    for(var j = 0; j < planet_count; j++)
+    {
+      var info = infos[2 + j].childNodes[0].textContent.trim();
+      if(info.length == 0)
+        info = infos[2 + j].childNodes[1].textContent.trim();
+     	if(info == "-")
+        continue;
+      info = info.replaceAll(',','').replaceAll('.', '') * 1;
+     	if(info_id < 100)
+        reports[j].dat[0][info_id] = info;
+     	else if(info_id < 200)
+        reports[j].dat[1][info_id] = info;
+     	else if(info_id < 400)
+        reports[j].dat[2][info_id] = info;
+     	else if(info_id < 900)
+        reports[j].dat[3][info_id] = info;
+      else
+        reports[j].dat[4][info_id] = info;
+      // check if the planet has a moon base
+      if(info_id == 41 && info > 0)
+        reports[j].planettype = 3;
+    }
+  }
+  var count = 0;
+  for(var i = 0; i < planet_count; i++)
+  {
+    try{
+      await pb.send("/spio", {
+        method: 'POST',
+        body: reports[i],
+      });
+      count = count + 1;
+    } catch (e) {
+      alert("Fehler beim Speichern: " + e.message);
+      continue;
+    }
+  }
+  alert("" + count + " / " + planet_count + " synchronisiert!");
 }
 
 // Findet alle aktuell angezeigten Spionageberichte
@@ -490,6 +642,8 @@ var spy_reports = document.querySelectorAll('tr.message_head:has(+tr.messages_bo
 var gala_sync = document.querySelector('td:has(input#gala_sync)');
 // Findet Flottenbewegungen in der Phalanx
 var stat_sync = document.querySelector('table.table519');
+// Findet die Tabelle der Imperiumsansicht
+var empire_sync = document.querySelector('table:has(tr.missile[data-info="d_503"])')
 
 
 // Füge für jeden Spionagebericht einen Senden (Discord) und Speichern (Pocketbase) button ein.
@@ -512,7 +666,7 @@ if(gala_sync != null)
 {
   const share_icon = make_icon_share('green', '20px', '20px');
   gala_sync.append(share_icon);
-  share_icon.onclick = function () {sync_gala();};
+  share_icon.onclick = function () {sync_gala(share_icon);};
 }
 
 if(stat_sync != null)
@@ -523,8 +677,16 @@ if(stat_sync != null)
     const share_icon = make_icon_share('green', '18px', '20px');
     const table_header = document.querySelector('table.table519 tr td');
     table_header.appendChild(share_icon);
-    share_icon.onclick = function() {sync_stat();};
+    share_icon.onclick = function() {sync_stat(share_icon);};
   }
+}
+
+if(empire_sync != null)
+{
+  const share_icon = make_icon_share('green', '20px', '20px');
+  share_icon.style.float = "right";
+  share_icon.onclick = function() {sync_empire(empire_sync, share_icon)};
+  empire_sync.querySelector('th').appendChild(share_icon);
 }
 
 // Playercard überschreiben
@@ -551,7 +713,7 @@ sneak_div.onclick = function() {
     const iref = frame.contentDocument;
     const header = iref.querySelector('tr th');
     header.appendChild(share_icon);
-    share_icon.onclick = function () { playercard_sync(iref); };
+    share_icon.onclick = function () { playercard_sync(iref, share_icon); };
     share_icon.style.float = 'right';
   }
 };
@@ -643,4 +805,268 @@ if(document.querySelector('form[action="game.php?page=settings"]') != null)
   document.getElementById('propass').addEventListener('keydown', (event) => {
       if (event.key === 'Enter') user_login();
   });
+}
+
+
+// Um die Server Zeit in der Galaxieansicht anzuzeigen müssen wir ebenfalls in den Kontext des Hauptfensters
+function addServerTime()
+{
+  const start_time = new Date(startTime).toLocaleString();
+  // Get gala view header
+  const header = document.querySelector('table.table569 th')
+  if(header)
+  {
+    const span = document.createElement("span");
+    span.style.color = "green";
+    span.style.float = "right";
+    span.textContent = start_time;
+    header.appendChild(span);
+  }
+}
+addJS_Node(null, null, addServerTime);
+
+// Auf der Nachrichtenseite einen Button einfügen, um alle gezeigten Spioberichte hochzuladen
+var messagetable = document.querySelectorAll('table#messagestable');
+if(messagetable.length === 2)
+{
+  messagetable = messagetable[0];
+  const td = messagetable.querySelector('tr:has(th) th');
+  var icon = make_icon_share('green', '18px', '20px');
+  icon.style.float = "right";
+  icon.onclick = sync_spio_all;
+  td.appendChild(icon);
+}
+
+async function sync_spio_all(event)
+{
+  var count = 0;
+  for(var i = 0; i < spy_reports.length; i++)
+	{
+  	const current_report = spy_reports[i];
+    if(await sync_spio(current_report, false, true) === true)
+    {
+      count = count + 1;
+    }
+	}
+  // Give feedback that the button was pressed
+  const icon = event.target.parentElement
+  icon.style.fill = "gray";
+  alert("" + count + " / " + spy_reports.length + " Berichte abgelegt!");
+}
+
+// Im Menü eine Kommandozentrale einfügen, in der Spio- und Angriffslinks abgelegt werden können
+const menu = document.querySelector('ul#menu');
+const sep = document.querySelectorAll('ul#menu li.menu-separator')[1];
+const li = document.createElement('li');
+const a = document.createElement('a');
+a.href="#";
+a.innerText = "Theke";
+li.appendChild(a);
+menu.insertBefore(li, sep);
+
+a.onclick = display_theke
+
+async function sendProbes(planetID) {
+  const url = "https://"+window.location.hostname+"/game.php?page=fleetAjax&ajax=1&mission=6&planetID=" + planetID;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Response status: ${response.status}`);
+    }
+
+    const json = await response.json();
+    return json.code == 600;
+  } catch (error) {
+    console.error(error.message);
+  }
+  return false;
+}
+
+function make_mission_player_content_tr(planet, moon)
+{
+  const tr = document.createElement('tr');
+  const td_pos = document.createElement('td');
+  const td_name = document.createElement('td');
+  const td_spy = document.createElement('td');
+  const td_att = document.createElement('td');
+  const td_status = document.createElement('td');
+
+  const id = moon ? planet.moon_id : planet.planet_id;
+  const planettype = moon ? 3 : 1;
+  const pgalaxy = planet.pos_galaxy;
+  const psystem = planet.pos_system;
+  const pplanet = planet.pos_planet;
+
+  td_pos.innerText = "[" + pgalaxy + ":" + psystem + ":" + pplanet + "]" + (moon ? " (M)" : "");
+  td_name.innerText = moon ? planet.moon_name : planet.planet_name;
+
+  const spy_link = document.createElement('a');
+  spy_link.href = "#";
+  spy_link.innerText = "Spy";
+  spy_link.onclick = async () => {const result = await sendProbes(id); td_status.innerText = result ? "OK" : "Error";}
+  td_spy.append(spy_link);
+
+  const att_link = document.createElement('a');
+  att_link.href = "https://"+window.location.hostname+"/game.php?page=fleetTable&galaxy="+pgalaxy+"&system="+psystem+"&planet="+pplanet+"&planettype="+planettype+"&target_mission=1";
+  att_link.innerText = "Attack";
+  td_att.append(att_link);
+
+  tr.append(td_pos, td_name, td_spy, td_att, td_status);
+  return tr;
+}
+
+function make_mission_player_content(mission_content, planets)
+{
+  mission_content.innerHTML = `<table id="mission-content-player">
+    	<tbody>
+      	<tr>
+    			<th>Position</th>
+    			<th>Name</th>
+    			<th>Spio</th>
+    			<th>Att</th>
+    			<th>Status</th>
+  			</tr>
+       </tbody>
+		</table>`;
+ 	const table = document.getElementById('mission-content-player');
+  
+  for(var i = 0; i < planets.length; i++)
+  {
+    const planet = planets[i];
+    const tr = make_mission_player_content_tr(planet, false);
+    table.append(tr);
+    if(planet.has_moon)
+    {
+      const moon_tr = make_mission_player_content_tr(planet, true);
+    	table.append(moon_tr);
+    }
+  }
+}
+
+
+var search_str = "";
+async function display_mission_player(mission_content, mission_search, search_options)
+{
+  mission_search.hidden = false;
+  mission_search.onkeyup = async (e) => {
+    if(e.target.value == search_str) return;
+    search_str = e.target.value;
+    var planets = [];
+    try 
+    {
+    	var options = await pb.collection('players').getList(1, 100, {
+	    	filter: pb.filter('player_name = {:search}', {search: search_str})
+			});
+      if(options.totalItems != 1)
+      {
+        options = await pb.collection('players').getList(1, 100, {
+          filter: pb.filter('player_name ~ {:search}', {search: search_str})
+        });
+      }
+      // Update datalist
+      var new_options = [];
+      for(var i = 0; i < options.items.length; i++)
+      {
+        const option = document.createElement('option');
+        option.value = options.items[i].player_name;
+        new_options.push(option);
+      }
+      search_options.innerHTML = "";
+      search_options.append(... new_options);
+      
+      if(options.totalItems == 1)
+      {
+        // Found the player, now get the planets
+        planets = await pb.collection('galaxy_state').getList(1, 100, {
+          filter: pb.filter('player_id = {:id}', {id: options.items[0].player_id}),
+          sort: "+pos_galaxy, +pos_system, +pos_planet"
+        });
+        make_mission_player_content(mission_content, planets.items);
+        return;
+      }
+      else
+        make_mission_player_content(mission_content, []);
+    } catch(e)
+    {
+      alert(e);
+    }
+  }
+  make_mission_player_content(mission_content, []);
+}
+
+async function display_mission(mission_content, mission_search, id)
+{
+  mission_search.hidden = true;
+  mission_content.innerHTML = `<table id="mission-content-player">
+    	<tbody>
+      	<tr>
+    			<th>Position</th>
+    			<th>Name</th>
+    			<th>Spio</th>
+    			<th>Att</th>
+    			<th>Status</th>
+  			</tr>
+       </tbody>
+		</table>`;
+ 	const table = document.getElementById('mission-content-player');
+  try{
+    // Get the planets for this mission from the database
+    const targets = await pb.collection('mission_targets').getList(1, 100, {
+            filter: pb.filter('mission = {:id}', {id: id}),
+            //sort: "+pos_galaxy, +pos_system, +pos_planet",
+            expand: "planet"
+          });
+    for(var i = 0; i < targets.items.length; i++)
+    {
+      table.appendChild(make_mission_player_content_tr(targets.items[i].expand.planet, targets.items[i].moon));
+    }
+    
+  }catch(error)
+  {
+    alert(error);
+  }
+}
+
+async function display_theke()
+{
+  const content = document.querySelector('content');
+  content.innerHTML =`
+    <table>
+			<tbody>
+      	<tr>
+					<th>Missionen</th>
+				</tr>
+				<tr>
+					<td>
+						<select name="type" id="mission-select" value="1">
+							<option value="1">Spieler</option>
+						</select>
+						<input type="text" list="search-options" name="searchtext" id="mission-search" hidden>
+	          <datalist id="search-options">
+            </datalist>
+					</td>
+				</tr>
+    	</tbody>
+    </table>
+    <div id="mission-content"></div>`;
+  const mission_select = content.querySelector('#mission-select');
+  const mission_content = content.querySelector('#mission-content');
+  const mission_search = content.querySelector('#mission-search');
+  const search_options = content.querySelector('#search-options');
+  mission_select.onchange = (e) => {
+    if(e.target.value == 1)
+      display_mission_player(mission_content, mission_search, search_options)
+    else
+      display_mission(mission_content, mission_search, e.target.value);
+  }
+  const missions = await (pb.collection('mission_list').getList(1, 100));
+  for(var i = 0; i < missions.items.length; i++)
+  {
+    const mission = missions.items[i];
+    const option = document.createElement('option');
+    option.value = mission.id;
+    option.innerText = mission.name;
+    mission_select.appendChild(option);
+  }
+  display_mission_player(mission_content, mission_search, search_options)
 }
