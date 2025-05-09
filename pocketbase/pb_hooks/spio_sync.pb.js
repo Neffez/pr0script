@@ -280,7 +280,7 @@ routerAdd("POST", "/spio", (c) => {
                 def_icon = " :yellow_circle:"
             }
             embeds.push({
-                "title": ":microscope: Verteidigung (Punkte: " + points_defense_record.points_defense.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + def_icon + ")",
+                "title": ":shield: Verteidigung (Punkte: " + points_defense_record.points_defense.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + def_icon + ")",
                 "color": 16744192,
                 "fields": mapped_def
             })
