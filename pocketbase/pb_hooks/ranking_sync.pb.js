@@ -1,17 +1,17 @@
 /// <reference path="../pb_data/types.d.ts" />
 
 routerAdd("POST", "/stats", (c) => {
-    if(!c.get("authRecord") && !c.get('admin'))
-        return c.json(403, { "message": "Nicht angemeldet"});
+    if (!c.get("authRecord") && !c.get('admin'))
+        return c.json(403, {"message": "Nicht angemeldet"});
     const info = $apis.requestInfo(c);
     const auth_id = info.authRecord.getId();
     // Check permissions
-    try{
+    try {
         const permissions = $app.dao().findFirstRecordByData("permissions", "user", auth_id);
-        if(!permissions.get('stats_update'))
-        return c.json(403, { "message": "Kein Zugriff!"});
+        if (!permissions.get('stats_update'))
+            return c.json(403, {"message": "Kein Zugriff!"});
     } catch {
-        return c.json(403, { "message": "Kein Zugriff!"});
+        return c.json(403, {"message": "Kein Zugriff!"});
     }
 
 
@@ -23,17 +23,17 @@ routerAdd("POST", "/stats", (c) => {
     });
     c.bind(data)
 
-    var stat_type = ''; 
-    if(data.ranking_type == 1)  stat_type = 'points';
-    else if(data.ranking_type == 2)  stat_type = 'fleet';
-    else if(data.ranking_type == 3)  stat_type = 'research';
-    else if(data.ranking_type == 4)  stat_type = 'buildings';
-    else if(data.ranking_type == 5)  stat_type = 'defense';
+    var stat_type = '';
+    if (data.ranking_type == 1) stat_type = 'points';
+    else if (data.ranking_type == 2) stat_type = 'fleet';
+    else if (data.ranking_type == 3) stat_type = 'research';
+    else if (data.ranking_type == 4) stat_type = 'buildings';
+    else if (data.ranking_type == 5) stat_type = 'defense';
     else {
-        return c.json(403, { "message": "Unbekannte Statistik!"});
+        return c.json(403, {"message": "Unbekannte Statistik!"});
     }
 
-    // There appears to be a big with timezone comparisons in $dbs.between calls, so we 
+    // There appears to be a big with timezone comparisons in $dbs.between calls, so we
     // add a 3hour buffer
     var cold_timestamp = new Date(data.epoch - 3 * 3600 * 1000);
     var hot_timestamp = new Date(data.epoch + 3 * 3600 * 1000);
@@ -45,27 +45,26 @@ routerAdd("POST", "/stats", (c) => {
     const allis = $app.dao().findCollectionByNameOrId("alliances");
     const uni_rankings = $app.dao().findCollectionByNameOrId("uni_rankings");
 
-    for(var i = 0; i < data.rankings.length; i++)
-    {
+    for (var i = 0; i < data.rankings.length; i++) {
         const new_ranking = data.rankings[i];
-        const last_records = $app.dao().findRecordsByExpr('uni_rankings', 
+        const last_records = $app.dao().findRecordsByExpr('uni_rankings',
             $dbx.hashExp({player_id: new_ranking["player_id"]}),
             $dbx.between('date', cold_timestamp, hot_timestamp),
         );
-        if(last_records.length != 0)
-        {
+        if (last_records.length != 0) {
             const last_record = last_records[0];
-            if(last_record.get("rank_"+stat_type) == 0)
-            {
+            if (last_record.get("rank_" + stat_type) == 0) {
                 // Update record
-                last_record.set("rank_"+stat_type, new_ranking["rank"]);
-                last_record.set("points_"+stat_type, new_ranking["points"]);
+                last_record.set("rank_" + stat_type, new_ranking["rank"]);
+                last_record.set("points_" + stat_type, new_ranking["points"]);
+                last_record.set("umode", new_ranking["is_umode"]);
+                last_record.set("inactive", new_ranking["is_inactive"]);
+                last_record.set("inactive_long", new_ranking["is_long_inactive"]);
+                last_record.set("banned", new_ranking["is_banned"]);
                 last_record.set("update_by", auth_id);
                 $app.dao().saveRecord(last_record);
             }
-        }
-        else
-        {
+        } else {
             var record_data = {
                 date: timestamp,
                 player_id: new_ranking["player_id"],
@@ -86,15 +85,14 @@ routerAdd("POST", "/stats", (c) => {
                 inactive_long: new_ranking['is_inactive_long'],
                 banned: new_ranking['is_banned']
             }
-            record_data["rank_"+stat_type] = new_ranking["rank"];
-            record_data["points_"+stat_type] = new_ranking["points"];
+            record_data["rank_" + stat_type] = new_ranking["rank"];
+            record_data["points_" + stat_type] = new_ranking["points"];
             try {
                 const record = new Record(uni_rankings);
                 const form = new RecordUpsertForm($app, record)
                 form.loadData(record_data);
                 form.submit();
-            } catch(e)
-            {
+            } catch (e) {
                 console.log("Failed to insert: ", e);
                 break;
             }
@@ -102,19 +100,17 @@ routerAdd("POST", "/stats", (c) => {
         }
 
         // UpSert players into database
-        try{
+        try {
             const player = $app.dao().findFirstRecordByData("players", "player_id", new_ranking['player_id']);
-            if(
+            if (
                 player.get('alli_id') != new_ranking['alli_id'] ||
-                player.get('player_name') != new_ranking['player_name'])
-            {
+                player.get('player_name') != new_ranking['player_name']) {
                 player.set('alli_id', new_ranking['alli_id'])
                 player.set('player_name', new_ranking['player_name'])
                 $app.dao().saveRecord(player);
             }
-        } catch(e)
-        {
-            try{
+        } catch (e) {
+            try {
                 // Player does not exist
                 const record = new Record(players);
                 const form = new RecordUpsertForm($app, record)
@@ -124,26 +120,22 @@ routerAdd("POST", "/stats", (c) => {
                     alli_id: new_ranking['alli_id'],
                 });
                 form.submit();
-            } catch(e)
-            {
+            } catch (e) {
                 console.log("Failed to insert: ", e);
                 break;
             }
         }
         // UpSert alliances into database
-        if(new_ranking['alli_id'] != 0)
-        {
-            try{
+        if (new_ranking['alli_id'] != 0) {
+            try {
                 const alli = $app.dao().findFirstRecordByData("alliances", "alli_id", new_ranking['alli_id']);
-                if(
-                    alli.get('alli_name') != new_ranking['alli_name'])
-                {
+                if (
+                    alli.get('alli_name') != new_ranking['alli_name']) {
                     alli.set('alli_name', new_ranking['alli_name'])
                     $app.dao().saveRecord(alli);
                 }
-            } catch(e)
-            {
-                try{
+            } catch (e) {
+                try {
                     // Alli does not exist
                     const record = new Record(allis);
                     const form = new RecordUpsertForm($app, record)
@@ -152,13 +144,12 @@ routerAdd("POST", "/stats", (c) => {
                         alli_name: new_ranking['alli_name'],
                     });
                     form.submit();
-                } catch(e)
-                {
+                } catch (e) {
                     console.log("Failed to insert: ", e);
                     break;
                 }
             }
         }
     }
-    return c.json(200, { "message": "ok"});
+    return c.json(200, {"message": "ok"});
 });
