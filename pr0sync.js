@@ -141,7 +141,7 @@ async function sync_gala(share_icon) {
             }
             // Planetenname nur ohne Aktivitätsinfo übernehmen
 
-            var planet_name = planet_div.querySelector('div:nth-child(2) a').textContent.replace(/\(\*?(\d+ min)?\)$/g, "");
+            var planet_name = planet_div.querySelector('div:nth-child(2) a').textContent.replace(/\s?\((\*|\d+ min)\)\s*$/g, "");
             var planet_picture = planet_div.querySelector('img').getAttribute('src');
             var planet_id = extract_id(planet_div.querySelector('a'), planet_name);
             if (planet_id == 0) {
