@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name     pr0game sync DEV
+// @name     pr0game sync
 // @version  0.1.5
 // @grant    none
 // @include  https://pr0game.ddev.site/*
@@ -83,82 +83,92 @@ function extract_id(popup) {
     return 0;
 }
 
+function extract_own_planet_id(gala, system, planet) {
+    var planet_id;
+    var moon_id;
+    var found_ids = [];
+    // Wenn wir unseren eigenen Planeten scannen, gibt es keinen Spio-Link :)
+    // Stattdessen können wir hier über die Planetenauswahl gehen
+    const my_planets = document.querySelectorAll('#planetSelector option');
+    for (var j = 0; j < my_planets.length; j++) {
+        var koords = /\[(\d+):(\d+):(\d+)\]$/g.exec(my_planets[j].textContent);
+
+        if (koords.length == 4) {
+            if (koords[1] == gala && koords[2] == system && koords[3] == planet) {
+                found_ids.push(my_planets[j].getAttribute('value') * 1);
+            }
+        }
+    }
+    if (found_ids.length == 1) {
+        planet_id = found_ids[0]
+    } else {
+        // Wenn wir einen Mond haben, dürfte der später entstanden sein als der Planet :)
+        if (found_ids[0] < found_ids[1]) {
+            planet_id = found_ids[0]
+            moon_id = found_ids[1]
+        } else {
+            planet_id = found_ids[1]
+            moon_id = found_ids[0]
+        }
+    }
+    return [planet_id, moon_id]
+}
+
 // Parst die Galaxieansicht und sendet Informationen an die Datenbank
 async function sync_gala(share_icon) {
     // Gala und System aus den voreingestellten Input-Values übernehmen
     var gala = document.querySelector('input[name=galaxy]').getAttribute("value") * 1;
     var system = document.querySelector('input[name=system]').getAttribute("value") * 1;
     // Darauf vertrauend, dass "table569" uns erhalten bleibt...
-    const gala_table = document.querySelector('table.table569');
+    const gala_table = document.querySelector('div.galaxy-grid-container');
     // diejenigen Zeilen selektieren, die Planeteninfos beinhalten
-    const planet_trs = gala_table.querySelectorAll('tr:has(>td + td + td + td + td)');
-
+    const planet_rows = gala_table.querySelectorAll('div.galaxy-grid-row');
+    console.log("planet_rows " + planet_rows);
     var planets = [];
-    for (var i = 0; i < planet_trs.length; i++) {
-        const planet = i + 1;
-        const planet_tr = planet_trs[i];
+    for (var i = 0; i < planet_rows.length; i++) {
+        const planet = i;
+        const planet_row = planet_rows[i];
         // Wenn kein Bild gehen wir von leerer Position aus
-        if (planet_tr.querySelector('td:nth-child(2) a img') == null) {
+        if (planet_row.querySelector('div:nth-child(2) a img') == null) {
             continue;
         } else {
             // Planet ist besiedelt
-            const planet_tds = planet_tr.querySelectorAll('td');
-            if (planet_tds.length != 8) {
+            const planet_div = planet_row.querySelector('div.galaxy-planet');
+
+            if (!planet_div) {
                 alert("Fehlerhafte Tabelle vorgefunden.");
                 return;
             }
             // Planetenname nur ohne Aktivitätsinfo übernehmen
 
-            var planet_name = planet_tds[2].textContent.replace(/\(\*?(\d+ min)?\)$/g, "");
-            var planet_picture = planet_tds[1].querySelector('img').getAttribute('src');
-            var planet_id = extract_id(planet_tds[1].querySelector('a'));
-
+            var planet_name = planet_div.querySelector('div:nth-child(2) a').textContent.replace(/\(\*?(\d+ min)?\)$/g, "");
+            var planet_picture = planet_div.querySelector('img').getAttribute('src');
+            var planet_id = extract_id(planet_div.querySelector('a'), planet_name);
+            if (planet_id == 0) {
+                planet_id = extract_own_planet_id(gala, system, planet)[0];
+            }
 
             // Mondinformationen sammeln
             var moon_name = "";
             var moon_picture = "";
             var has_moon = false;
             var moon_id = 0;
-            if (planet_tds[3].querySelector('img') != null) {
+            const moon_div = planet_row.querySelector('div.galaxy-moon');
+            if (moon_div.querySelector('img') != null) {
                 has_moon = true;
-                moon_picture = planet_tds[3].querySelector('img').getAttribute('src');
+                moon_picture = moon_div.querySelector('img').getAttribute('src');
                 // Der Mondname ist hinter dem Pop-Up versteckt, daher etwas unschön erst mal ein Element konstruieren das wir befragen können
-                const moon_data = planet_tds[3].querySelector('a').getAttribute('data-tooltip-content');
+                const moon_data = moon_div.querySelector('a').getAttribute('data-tooltip-content');
                 var moon_info = document.createElement("div");
                 moon_info.innerHTML = moon_data;
                 moon_name = moon_info.querySelector('th').textContent.replace(/^[^\s]* /g, '').replace(/\[\d+:\d+:\d+\]$/g, '');
-                moon_id = extract_id(planet_tds[3].querySelector('a'));
-
+                moon_id = extract_id(moon_div.querySelector('a'));
+                if (moon_id == 0) {
+                    moon_id = extract_own_planet_id(gala, system, planet)[1];
+                }
             }
 
-            var player_id = extract_id(planet_tds[5].querySelector('a'));
-
-            if (planet_id === 0) {
-                var found_ids = [];
-                // Wenn wir unseren eigenen Planeten scannen, gibt es keinen Spio-Link :)
-                // Stattdessen können wir hier über die Planetenauswahl gehen
-                const my_planets = document.querySelectorAll('#planetSelector option');
-                for (var j = 0; j < my_planets.length; j++) {
-                    var koords = /\[(\d+):(\d+):(\d+)\]$/g.exec(my_planets[j].textContent);
-                    if (koords.length == 4) {
-                        if (koords[1] == gala && koords[2] == system && koords[3] == planet)
-                            found_ids.push(my_planets[j].getAttribute('value') * 1);
-                    }
-                }
-                if (found_ids.length == 1)
-                    planet_id = found_ids[0]
-                else {
-                    // Wenn wir einen Mond haben, dürfte der später entstanden sein als der Planet :)
-                    if (found_ids[0] < found_ids[1]) {
-                        planet_id = found_ids[0]
-                        moon_id = found_ids[1]
-                    } else {
-                        planet_id = found_ids[1]
-                        moon_id = found_ids[0]
-                    }
-                }
-
-            }
+            var player_id = extract_id(planet_row.querySelector('div.galaxy-player').querySelector('a'));
 
             var planet_info = {
                 'pos_galaxy': gala,
@@ -626,7 +636,7 @@ for (var i = 0; i < spy_reports.length; i++) {
 if (gala_sync != null) {
     const share_icon = make_icon_share('green', '20px', '20px');
     gala_sync.append(share_icon);
-    sync_gala(share_icon);
+    // sync_gala(share_icon); // illegal to sync automatically
     share_icon.onclick = function () {
         sync_gala(share_icon);
     };
@@ -638,7 +648,7 @@ if (stat_sync != null) {
         const share_icon = make_icon_share('green', '18px', '20px');
         const table_header = document.querySelector('table.table519 tr td');
         table_header.appendChild(share_icon);
-        sync_stat(share_icon);
+        //  sync_stat(share_icon); // illegal to sync automatically
         share_icon.onclick = function () {
             sync_stat(share_icon);
         };
