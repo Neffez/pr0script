@@ -136,8 +136,15 @@ async function sync_gala(share_icon) {
             const planet_div = planet_row.querySelector('div.galaxy-planet');
 
             if (!planet_div) {
-                alert("Fehlerhafte Tabelle vorgefunden.");
-                return;
+                const textContent = planet_row.querySelector('div.span2').textContent;
+
+                if(textContent.includes('Planet')) { // colony was destroyed, continue
+                    continue;
+                }
+                if(!textContent) {
+                    alert("Fehlerhafte Tabelle vorgefunden.");
+                    return;
+                }
             }
             // Planetenname nur ohne Aktivitätsinfo übernehmen
 
