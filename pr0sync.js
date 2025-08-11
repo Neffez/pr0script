@@ -282,10 +282,11 @@ async function sync_spio(message_group, send_discord, be_silent) {
 
         data_maps['dat' + category][typ] = value.replaceAll('.', '').replaceAll(',', '').trim() * 1;
     }
+	// forward=false because sending to discord is not allowed
     var report = {
         msg_id: msg_id * 1,
         timestamp: timestamp,
-        forward: send_discord,
+        forward: false,
         galaxy: galaxy,
         system: system,
         planet: planet,
